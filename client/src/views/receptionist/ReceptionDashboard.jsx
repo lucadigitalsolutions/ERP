@@ -7,6 +7,7 @@ import {
   LayoutGrid, MapPin, Sliders, Smartphone, AlertTriangle, FileText
 } from 'lucide-react';
 import PatientProfileView from '../shared/PatientProfileView';
+import PatientRegisterModal from '../shared/PatientRegisterModal';
 
 const ReceptionDashboard = () => {
   const { clinic, addNotification, activeSubTab, setActiveSubTab } = useRole();
@@ -30,6 +31,18 @@ const ReceptionDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  
+  // Advanced Patient Filters
+  const [patStartDate, setPatStartDate] = useState('');
+  const [patEndDate, setPatEndDate] = useState('');
+  const [patDob, setPatDob] = useState('');
+  const [patDoctorFilter, setPatDoctorFilter] = useState('all');
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Advanced Appointment Filters
+  const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
+  const [apptStartDate, setApptStartDate] = useState('');
+  const [apptEndDate, setApptEndDate] = useState('');
 
   // Calendar Layout: daily, weekly, monthly, timeline
   const [calendarLayout, setCalendarLayout] = useState('daily');
@@ -261,11 +274,17 @@ const ReceptionDashboard = () => {
     }
   };
 
-  // Filtered Appointments based on selected status & room number filters
+  // Filtered Appointments based on selected status, room number, doctor, & date range filters
   const filteredAppointments = appointments.filter(appt => {
     const statusMatch = selectedQueueStatusFilter === 'all' || appt.status === selectedQueueStatusFilter;
     const roomMatch = selectedRoomFilter === 'all' || appt.room_number === selectedRoomFilter;
-    return statusMatch && roomMatch;
+    const doctorMatch = selectedDoctorFilter === 'all' || appt.doctor_id == selectedDoctorFilter;
+    
+    const apptDate = appt.appointment_date ? new Date(appt.appointment_date) : new Date();
+    const startMatch = !apptStartDate || apptDate >= new Date(apptStartDate + 'T00:00:00');
+    const endMatch = !apptEndDate || apptDate <= new Date(apptEndDate + 'T23:59:59');
+
+    return statusMatch && roomMatch && doctorMatch && startMatch && endMatch;
   });
 
   const filteredPatients = patients.filter(p => 
@@ -546,37 +565,69 @@ const ReceptionDashboard = () => {
           </div>
 
           {/* Filtering row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div>
-              <label className="block text-[10px] uppercase text-slate-500 mb-1">Filter by Consult Room</label>
+              <label className="block text-[10px] uppercase text-slate-500 mb-1">Filter Room</label>
               <select
                 value={selectedRoomFilter}
                 onChange={(e) => setSelectedRoomFilter(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded px-2.5 py-1.5 focus:outline-none"
               >
-                <option value="all">All Consultation Rooms</option>
+                <option value="all">All Rooms</option>
                 {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase text-slate-500 mb-1">Filter by Queue Status (9 Statuses)</label>
+              <label className="block text-[10px] uppercase text-slate-500 mb-1">Filter Doctor</label>
+              <select
+                value={selectedDoctorFilter}
+                onChange={(e) => setSelectedDoctorFilter(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded px-2.5 py-1.5 focus:outline-none"
+              >
+                <option value="all">All Doctors</option>
+                {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.first_name} {d.last_name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase text-slate-500 mb-1">Queue Status</label>
               <select
                 value={selectedQueueStatusFilter}
                 onChange={(e) => setSelectedQueueStatusFilter(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded px-2.5 py-1.5 focus:outline-none"
               >
-                <option value="all">All Queue Statuses</option>
-                <option value="booked">1. Booked (Scheduled)</option>
-                <option value="checked_in">2. Checked In (Arrived)</option>
-                <option value="waiting">3. Waiting (Triage Done)</option>
-                <option value="in_consultation">4. In Consultation</option>
-                <option value="completed">5. Completed</option>
-                <option value="cancelled">6. Cancelled</option>
-                <option value="rescheduled">7. Rescheduled</option>
-                <option value="no_show">8. No Show</option>
-                <option value="payment_pending">9. Payment Pending</option>
+                <option value="all">All Statuses</option>
+                <option value="booked">Booked (Scheduled)</option>
+                <option value="checked_in">Checked In (Arrived)</option>
+                <option value="waiting">Waiting (Triage Done)</option>
+                <option value="in_consultation">In Consultation</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="rescheduled">Rescheduled</option>
+                <option value="no_show">No Show</option>
+                <option value="payment_pending">Payment Pending</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase text-slate-500 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={apptStartDate}
+                onChange={(e) => setapptStartDate ? setApptStartDate(e.target.value) : null}
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded px-2.5 py-1.5 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase text-slate-500 mb-1">End Date</label>
+              <input
+                type="date"
+                value={apptEndDate}
+                onChange={(e) => setapptEndDate ? setApptEndDate(e.target.value) : null}
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded px-2.5 py-1.5 focus:outline-none"
+              />
             </div>
           </div>
 
@@ -723,14 +774,65 @@ const ReceptionDashboard = () => {
         <div className="glass-panel rounded-2xl p-6 flex flex-col h-[calc(100vh-12rem)]">
           <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Registered Patients Directory</h2>
-            <div className="relative w-80">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+            <button
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg shadow-lg"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Patient</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4 text-[11px]">
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Patient</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search Name, Phone, MRN..."
+                  value={patientSearchQuery}
+                  onChange={(e) => setPatientSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 pl-8 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Filter DOB</label>
               <input
-                type="text"
-                placeholder="Search UHID, Phone, Name..."
-                value={patientSearchQuery}
-                onChange={(e) => setPatientSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                type="date"
+                value={patDob}
+                onChange={(e) => setPatDob(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Filter Doctor</label>
+              <select
+                value={patDoctorFilter}
+                onChange={(e) => setPatDoctorFilter(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2 py-1.5 text-slate-200"
+              >
+                <option value="all">All Doctors</option>
+                {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.first_name} {d.last_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Start Reg Date</label>
+              <input
+                type="date"
+                value={patStartDate}
+                onChange={(e) => setPatStartDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">End Reg Date</label>
+              <input
+                type="date"
+                value={patEndDate}
+                onChange={(e) => setPatEndDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
               />
             </div>
           </div>
@@ -750,12 +852,27 @@ const ReceptionDashboard = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/40 text-slate-350">
                 {patients
-                  .filter(p => 
-                    p.first_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                    (p.last_name && p.last_name.toLowerCase().includes(patientSearchQuery.toLowerCase())) ||
-                    p.phone.includes(patientSearchQuery) ||
-                    p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase())
-                  )
+                  .filter(p => {
+                    const matchesQuery = p.first_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                                         (p.last_name && p.last_name.toLowerCase().includes(patientSearchQuery.toLowerCase())) ||
+                                         p.phone.includes(patientSearchQuery) ||
+                                         p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase());
+                    const matchesDob = !patDob || p.dob === patDob;
+                    
+                    const regDate = p.created_at ? new Date(p.created_at) : new Date();
+                    const matchesStart = !patStartDate || regDate >= new Date(patStartDate + 'T00:00:00');
+                    const matchesEnd = !patEndDate || regDate <= new Date(patEndDate + 'T23:59:59');
+
+                    let matchesDoc = true;
+                    if (patDoctorFilter && patDoctorFilter !== 'all') {
+                      matchesDoc = appointments.some(appt => 
+                        appt.patient_id === p.id && 
+                        appt.doctor_id == patDoctorFilter
+                      );
+                    }
+
+                    return matchesQuery && matchesDob && matchesStart && matchesEnd && matchesDoc;
+                  })
                   .map(p => (
                     <tr key={p.id} className="hover:bg-slate-900/10 transition-colors">
                       <td className="py-3 px-3 font-semibold text-brand-400 font-mono">{p.mrn}</td>
@@ -870,7 +987,25 @@ const ReceptionDashboard = () => {
             </table>
           </div>
         </div>
-      )}
+      <PatientRegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSuccess={(simulatedPatient) => {
+          fetchData();
+          if (simulatedPatient) {
+            setPatients(prev => [
+              {
+                id: prev.length + 1,
+                mrn: `UHID-2026-${String(prev.length + 1).padStart(4, '0')}`,
+                created_at: new Date().toISOString(),
+                ...simulatedPatient
+              },
+              ...prev
+            ]);
+          }
+        }}
+        addNotification={addNotification}
+      />
 
     </div>
   );

@@ -124,7 +124,7 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { email, password, first_name, last_name, phone, role_id } = req.body;
+    const { email, password, first_name, last_name, phone, role_id, specialization, license_number, experience_years, consultation_fee } = req.body;
     const password_hash = await bcrypt.hash(password || 'password123', 10);
     const user = await db.users.create({
       organization_id: 1,
@@ -133,9 +133,20 @@ app.post('/api/users', async (req, res) => {
       first_name,
       last_name,
       phone,
-      role_id,
+      role_id: parseInt(role_id),
       status: 'active'
     });
+
+    if (parseInt(role_id) === 3) {
+      await db.doctors.create({
+        user_id: user.id,
+        specialization,
+        license_number,
+        experience_years,
+        consultation_fee
+      });
+    }
+
     res.status(201).json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -395,6 +406,24 @@ app.post('/api/inventory', async (req, res) => {
 // ==========================================
 // 9. LAB & DIAGNOSTICS
 // ==========================================
+app.get('/api/lab/tests', async (req, res) => {
+  try {
+    const list = await db.lab_tests.list();
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/lab/tests', async (req, res) => {
+  try {
+    const test = await db.lab_tests.create(req.body);
+    res.status(201).json(test);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/lab/orders', async (req, res) => {
   try {
     const orders = await db.diagnostics.list();

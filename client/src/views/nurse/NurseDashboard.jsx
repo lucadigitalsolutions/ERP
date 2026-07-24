@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRole } from '../../context/RoleContext';
-import { Activity, Thermometer, Heart, User, CheckCircle, AlertTriangle, Search, Users, FolderOpen } from 'lucide-react';
+import { Activity, Thermometer, Heart, User, CheckCircle, AlertTriangle, Search, Users, FolderOpen, Plus } from 'lucide-react';
 import PatientProfileView from '../shared/PatientProfileView';
+import PatientRegisterModal from '../shared/PatientRegisterModal';
 
 const NurseDashboard = () => {
   const { clinic, addNotification, activeSubTab, setActiveSubTab } = useRole();
@@ -11,6 +12,12 @@ const NurseDashboard = () => {
   const [patients, setPatients] = useState([]);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState(null);
+
+  // Advanced Patient Filters
+  const [patStartDate, setPatStartDate] = useState('');
+  const [patEndDate, setPatEndDate] = useState('');
+  const [patDob, setPatDob] = useState('');
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   
   // Vitals form
   const [vitals, setVitals] = useState({
@@ -103,14 +110,54 @@ const NurseDashboard = () => {
       <div className="glass-panel rounded-2xl p-6 flex flex-col h-[calc(100vh-7rem)]">
         <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Registered Patients Directory</h2>
-          <div className="relative w-80">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg shadow-lg"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Patient</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 text-[11px]">
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Patient</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search UHID, Phone, Name..."
+                value={patientSearchQuery}
+                onChange={(e) => setPatientSearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 pl-8 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Filter DOB</label>
             <input
-              type="text"
-              placeholder="Search UHID, Phone, Name..."
-              value={patientSearchQuery}
-              onChange={(e) => setPatientSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              type="date"
+              value={patDob}
+              onChange={(e) => setPatDob(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Start Reg Date</label>
+            <input
+              type="date"
+              value={patStartDate}
+              onChange={(e) => setPatStartDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">End Reg Date</label>
+            <input
+              type="date"
+              value={patEndDate}
+              onChange={(e) => setPatEndDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
             />
           </div>
         </div>
@@ -129,12 +176,19 @@ const NurseDashboard = () => {
             </thead>
             <tbody className="divide-y divide-slate-800/40 text-slate-350">
               {patients
-                .filter(p => 
-                  p.first_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                  (p.last_name && p.last_name.toLowerCase().includes(patientSearchQuery.toLowerCase())) ||
-                  p.phone.includes(patientSearchQuery) ||
-                  p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase())
-                )
+                .filter(p => {
+                  const matchesQuery = p.first_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                                       (p.last_name && p.last_name.toLowerCase().includes(patientSearchQuery.toLowerCase())) ||
+                                       p.phone.includes(patientSearchQuery) ||
+                                       p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase());
+                  const matchesDob = !patDob || p.dob === patDob;
+                  
+                  const regDate = p.created_at ? new Date(p.created_at) : new Date();
+                  const matchesStart = !patStartDate || regDate >= new Date(patStartDate + 'T00:00:00');
+                  const matchesEnd = !patEndDate || regDate <= new Date(patEndDate + 'T23:59:59');
+
+                  return matchesQuery && matchesDob && matchesStart && matchesEnd;
+                })
                 .map(p => (
                   <tr key={p.id} className="hover:bg-slate-900/10 transition-colors">
                     <td className="py-3 px-3 font-semibold text-brand-400 font-mono">{p.mrn}</td>
@@ -155,6 +209,26 @@ const NurseDashboard = () => {
             </tbody>
           </table>
         </div>
+
+        <PatientRegisterModal
+          isOpen={isRegisterModalOpen}
+          onClose={() => setIsRegisterModalOpen(false)}
+          onSuccess={(simulatedPatient) => {
+            fetchQueue();
+            if (simulatedPatient) {
+              setPatients(prev => [
+                {
+                  id: prev.length + 1,
+                  mrn: `UHID-2026-${String(prev.length + 1).padStart(4, '0')}`,
+                  created_at: new Date().toISOString(),
+                  ...simulatedPatient
+                },
+                ...prev
+              ]);
+            }
+          }}
+          addNotification={addNotification}
+        />
       </div>
     );
   }

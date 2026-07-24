@@ -8,6 +8,7 @@ import {
   Video, ShieldCheck, Search
 } from 'lucide-react';
 import PatientProfileView from '../shared/PatientProfileView';
+import PatientRegisterModal from '../shared/PatientRegisterModal';
 
 const DoctorDashboard = () => {
   const { clinic, addNotification, activeSubTab } = useRole();
@@ -18,6 +19,10 @@ const DoctorDashboard = () => {
   
   // History
   const [patients, setPatients] = useState([]);
+  const [patStartDate, setPatStartDate] = useState('');
+  const [patEndDate, setPatEndDate] = useState('');
+  const [patDob, setPatDob] = useState('');
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [patientHistory, setPatientHistory] = useState([]);
   const [patientInvoices, setPatientInvoices] = useState([]);
   const [latestVitals, setLatestVitals] = useState({});
@@ -621,14 +626,54 @@ const DoctorDashboard = () => {
               <FolderOpen className="w-4 h-4 text-brand-400" />
               <span>EMR Patient Archives Lookup</span>
             </h2>
-            <div className="relative w-72 text-xs">
-              <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-500" />
-              <input 
-                type="text" 
-                placeholder="Search patient name or MRN..." 
-                value={patientSearchQuery}
-                onChange={(e) => setPatientSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            <button
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg shadow-lg"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Patient</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 text-[11px]">
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Patient</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search name, phone, MRN..."
+                  value={patientSearchQuery}
+                  onChange={(e) => setPatientSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 pl-8 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Filter DOB</label>
+              <input
+                type="date"
+                value={patDob}
+                onChange={(e) => setPatDob(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Start Reg Date</label>
+              <input
+                type="date"
+                value={patStartDate}
+                onChange={(e) => setPatStartDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">End Reg Date</label>
+              <input
+                type="date"
+                value={patEndDate}
+                onChange={(e) => setPatEndDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
               />
             </div>
           </div>
@@ -638,15 +683,23 @@ const DoctorDashboard = () => {
               {patients
                 .filter(p => {
                   const fullName = `${p.first_name} ${p.last_name || ''}`.toLowerCase();
-                  return fullName.includes(patientSearchQuery.toLowerCase()) || 
-                         p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase());
+                  const matchesQuery = fullName.includes(patientSearchQuery.toLowerCase()) || 
+                                       p.mrn.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                                       (p.phone && p.phone.includes(patientSearchQuery));
+                  const matchesDob = !patDob || p.dob === patDob;
+                  
+                  const regDate = p.created_at ? new Date(p.created_at) : new Date();
+                  const matchesStart = !patStartDate || regDate >= new Date(patStartDate + 'T00:00:00');
+                  const matchesEnd = !patEndDate || regDate <= new Date(patEndDate + 'T23:59:59');
+
+                  return matchesQuery && matchesDob && matchesStart && matchesEnd;
                 })
                 .map((patient) => (
                   <div key={patient.id} className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="font-bold text-slate-200 text-sm">{patient.first_name} {patient.last_name || ''}</h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">UHID: {patient.mrn} | {patient.gender}, {patient.age || 'N/A'} Yrs</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">UHID: {patient.mrn} | {patient.gender}, {patient.age || 'N/A'} Yrs | DOB: {patient.dob || 'N/A'}</p>
                       </div>
                       <span className="text-[9px] bg-brand-500/25 text-brand-400 px-2 py-0.5 rounded font-mono font-bold uppercase">Active File</span>
                     </div>
@@ -665,6 +718,26 @@ const DoctorDashboard = () => {
                 ))}
             </div>
           </div>
+
+          <PatientRegisterModal
+            isOpen={isRegisterModalOpen}
+            onClose={() => setIsRegisterModalOpen(false)}
+            onSuccess={(simulatedPatient) => {
+              fetchQueue();
+              if (simulatedPatient) {
+                setPatients(prev => [
+                  {
+                    id: prev.length + 1,
+                    mrn: `UHID-2026-${String(prev.length + 1).padStart(4, '0')}`,
+                    created_at: new Date().toISOString(),
+                    ...simulatedPatient
+                  },
+                  ...prev
+                ]);
+              }
+            }}
+            addNotification={addNotification}
+          />
         </div>
       )}
 

@@ -12,6 +12,12 @@ const ClinicAdminDashboard = () => {
   
   // Staff Directory
   const [staff, setStock] = useState([]);
+
+  // Advanced Staff Filters
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState('all');
+  const [staffStartDate, setStaffStartDate] = useState('');
+  const [staffEndDate, setStaffEndDate] = useState('');
   
   // Form State
   const [staffForm, setStaffForm] = useState({
@@ -189,6 +195,57 @@ const ClinicAdminDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 glass-panel rounded-2xl p-6">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4">Branch Staff Directory</h2>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 text-[11px]">
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Staff</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search name, phone, email..."
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 pl-8 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Filter Role</label>
+                <select
+                  value={staffRoleFilter}
+                  onChange={(e) => setStaffRoleFilter(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2 py-1.5 text-slate-200"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="receptionist">Receptionist</option>
+                  <option value="lab_tech">Lab Tech</option>
+                  <option value="pharmacist">Pharmacist</option>
+                  <option value="accountant">Accountant</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={staffStartDate}
+                  onChange={(e) => setStaffStartDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={staffEndDate}
+                  onChange={(e) => setStaffEndDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                />
+              </div>
+            </div>
+
             <div className="overflow-x-auto text-xs">
               <table className="w-full text-left">
                 <thead>
@@ -201,23 +258,39 @@ const ClinicAdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/45 text-slate-300">
-                  {staff.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-900/10">
-                      <td className="py-3 px-3 font-semibold text-slate-200">{s.first_name} {s.last_name || ''}</td>
-                      <td className="py-3 px-3 capitalize">
-                        <span className="bg-slate-950 px-2 py-0.5 rounded text-slate-400 border border-slate-900 text-[10px]">
-                          {s.role_name ? s.role_name.replace('_', ' ') : 'doctor'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">{s.email}</td>
-                      <td className="py-3 px-3 font-mono">{s.phone || 'N/A'}</td>
-                      <td className="py-3 px-3">
-                        <span className="bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded text-[9px] uppercase">
-                          {s.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {staff
+                    .filter(s => {
+                      const fullName = `${s.first_name} ${s.last_name || ''}`.toLowerCase();
+                      const matchesQuery = fullName.includes(staffSearchQuery.toLowerCase()) || 
+                                           s.email.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                                           (s.phone && s.phone.includes(staffSearchQuery));
+                      
+                      const roleName = s.role_name ? s.role_name.toLowerCase() : 'doctor';
+                      const matchesRole = staffRoleFilter === 'all' || roleName === staffRoleFilter.toLowerCase();
+                      
+                      const createdDate = s.created_at ? new Date(s.created_at) : new Date('2026-07-01');
+                      const matchesStart = !staffStartDate || createdDate >= new Date(staffStartDate + 'T00:00:00');
+                      const matchesEnd = !staffEndDate || createdDate <= new Date(staffEndDate + 'T23:59:59');
+
+                      return matchesQuery && matchesRole && matchesStart && matchesEnd;
+                    })
+                    .map((s) => (
+                      <tr key={s.id} className="hover:bg-slate-900/10">
+                        <td className="py-3 px-3 font-semibold text-slate-200">{s.first_name} {s.last_name || ''}</td>
+                        <td className="py-3 px-3 capitalize">
+                          <span className="bg-slate-950 px-2 py-0.5 rounded text-slate-400 border border-slate-900 text-[10px]">
+                            {s.role_name ? s.role_name.replace('_', ' ') : 'doctor'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">{s.email}</td>
+                        <td className="py-3 px-3 font-mono">{s.phone || 'N/A'}</td>
+                        <td className="py-3 px-3">
+                          <span className="bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded text-[9px] uppercase">
+                            {s.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

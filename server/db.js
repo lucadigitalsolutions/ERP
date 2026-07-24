@@ -172,6 +172,13 @@ const memoryDb = {
     { id: 1, clinic_id: 1, title: 'Reagent chemicals purchase', category: 'Medical Supplies', amount: 8500.00, method: 'UPI', date: '2026-07-20' },
     { id: 2, clinic_id: 1, title: 'Clinic floor electricity bill', category: 'Utilities', amount: 14200.00, method: 'Bank Transfer', date: '2026-07-15' }
   ],
+  lab_tests: [
+    { id: 1, name: 'Complete Blood Count (CBC)', category: 'Hematology', standard_cost: 350.00, normal_range: 'Hb: 12-16 g/dL, WBC: 4k-11k' },
+    { id: 2, name: 'Lipid Profile', category: 'Biochemistry', standard_cost: 600.00, normal_range: 'Cholesterol: <200 mg/dL' },
+    { id: 3, name: 'HbA1c', category: 'Diabetology', standard_cost: 450.00, normal_range: '< 5.7%' },
+    { id: 4, name: 'Thyroid Profile (T3, T4, TSH)', category: 'Endocrinology', standard_cost: 550.00, normal_range: 'TSH: 0.4-4.0 mIU/L' },
+    { id: 5, name: 'Urine Routine & Microscopy', category: 'Clinical Pathology', standard_cost: 200.00, normal_range: 'Clear, pH: 6.0' }
+  ],
   audit_logs: []
 };
 
@@ -256,6 +263,40 @@ const db = {
         JOIN users u ON d.user_id = u.id
       `);
       return res.rows;
+    },
+    create: async (doc) => {
+      if (useFallback) {
+        const newDoc = {
+          id: memoryDb.doctors.length + 1,
+          user_id: doc.user_id,
+          specialization: doc.specialization || 'General Medicine',
+          license_number: doc.license_number || `LIC-${Math.floor(10000 + Math.random() * 90000)}`,
+          experience_years: parseInt(doc.experience_years || 5),
+          consultation_fee: parseFloat(doc.consultation_fee || 500.00),
+          teleconsult_available: true
+        };
+        memoryDb.doctors.push(newDoc);
+        return newDoc;
+      }
+      try {
+        const res = await pool.query(
+          'INSERT INTO doctors (user_id, specialization, license_number, experience_years, consultation_fee, teleconsult_available) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+          [doc.user_id, doc.specialization || 'General Medicine', doc.license_number || `LIC-${Math.floor(10000 + Math.random() * 90000)}`, parseInt(doc.experience_years || 5), parseFloat(doc.consultation_fee || 500.00), true]
+        );
+        return res.rows[0];
+      } catch (err) {
+        const newDoc = {
+          id: memoryDb.doctors.length + 1,
+          user_id: doc.user_id,
+          specialization: doc.specialization || 'General Medicine',
+          license_number: doc.license_number || `LIC-${Math.floor(10000 + Math.random() * 90000)}`,
+          experience_years: parseInt(doc.experience_years || 5),
+          consultation_fee: parseFloat(doc.consultation_fee || 500.00),
+          teleconsult_available: true
+        };
+        memoryDb.doctors.push(newDoc);
+        return newDoc;
+      }
     }
   },
   patients: {
@@ -798,6 +839,35 @@ const db = {
         const newExp = { id: memoryDb.expenses.length + 1, ...expense, created_at: new Date() };
         memoryDb.expenses.push(newExp);
         return newExp;
+      }
+    }
+  },
+  lab_tests: {
+    list: async () => {
+      if (useFallback) return memoryDb.lab_tests;
+      try {
+        const res = await pool.query('SELECT * FROM lab_tests ORDER BY name ASC');
+        return res.rows;
+      } catch (err) {
+        return memoryDb.lab_tests;
+      }
+    },
+    create: async (test) => {
+      if (useFallback) {
+        const newTest = { id: memoryDb.lab_tests.length + 1, ...test, created_at: new Date() };
+        memoryDb.lab_tests.push(newTest);
+        return newTest;
+      }
+      try {
+        const res = await pool.query(
+          'INSERT INTO lab_tests (name, category, standard_cost, normal_range) VALUES ($1, $2, $3, $4) RETURNING *',
+          [test.name, test.category, parseFloat(test.standard_cost), test.normal_range]
+        );
+        return res.rows[0];
+      } catch (err) {
+        const newTest = { id: memoryDb.lab_tests.length + 1, ...test, created_at: new Date() };
+        memoryDb.lab_tests.push(newTest);
+        return newTest;
       }
     }
   }

@@ -53,7 +53,8 @@ const Sidebar = () => {
         return [
           { id: 'orders', label: 'Diagnostics Orders', icon: <FlaskConical className="w-4 h-4" /> },
           { id: 'lab_history', label: 'Diagnostics History', icon: <FileText className="w-4 h-4" /> },
-          { id: 'specimens', label: 'Specimen Intake Logs', icon: <Database className="w-4 h-4" /> }
+          { id: 'specimens', label: 'Specimen Intake Logs', icon: <Database className="w-4 h-4" /> },
+          { id: 'catalog', label: 'Diagnostics Catalog', icon: <FlaskConical className="w-4 h-4" /> }
         ];
       case 'pharmacist':
         return [

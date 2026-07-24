@@ -4,7 +4,7 @@ import { useRole } from '../../context/RoleContext';
 import { 
   ShoppingBag, Database, AlertCircle, Plus, Search, 
   Archive, Users, CreditCard, Receipt, Barcode, HelpCircle, 
-  Printer, ArrowRightLeft, FileSpreadsheet, FileText
+  Printer, ArrowRightLeft, FileSpreadsheet, FileText, X
 } from 'lucide-react';
 
 const PharmacistDashboard = () => {
@@ -31,6 +31,11 @@ const PharmacistDashboard = () => {
     medicine_name: '', batch_number: '', expiry_date: '', stock_qty: '', purchase_rate: '', sale_rate: '', gst_percent: '12',
     supplier_name: 'Apollo Pharma Distributors', supplier_invoice_no: 'INV-PH-88901'
   });
+
+  // Advanced Inventory Filters & Modal
+  const [expStartDate, setExpStartDate] = useState('');
+  const [expEndDate, setExpEndDate] = useState('');
+  const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
 
   // Supplier profiles
   const [suppliers] = useState([
@@ -113,10 +118,16 @@ const PharmacistDashboard = () => {
     return diffMonths <= 12;
   });
 
-  const filteredStock = stock.filter(item => 
-    item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.batch_number.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredStock = stock.filter(item => {
+    const matchesQuery = item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.batch_number.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const expDate = item.expiry_date ? new Date(item.expiry_date) : new Date();
+    const matchesStart = !expStartDate || expDate >= new Date(expStartDate + 'T00:00:00');
+    const matchesEnd = !expEndDate || expDate <= new Date(expEndDate + 'T23:59:59');
+
+    return matchesQuery && matchesStart && matchesEnd;
+  });
 
   return (
     <div className="space-y-6">
@@ -150,16 +161,47 @@ const PharmacistDashboard = () => {
       {activeSubTab === 'inventory' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 glass-panel rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-800 mb-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Medication Stock Ledger</h2>
-              <div className="relative w-64">
-                <Search className="absolute left-2.5 top-2 w-4 h-4 text-slate-500" />
+              <button
+                onClick={() => setIsAddStockModalOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg shadow-lg"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Stock Item</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-[11px]">
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Formulation</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Filter name, batch..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 pl-8 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Expiry Start Date</label>
                 <input
-                  type="text"
-                  placeholder="Filter drug formulation..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-4 py-1.5 text-xs text-slate-200 focus:outline-none"
+                  type="date"
+                  value={expStartDate}
+                  onChange={(e) => setExpStartDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Expiry End Date</label>
+                <input
+                  type="date"
+                  value={expEndDate}
+                  onChange={(e) => setExpEndDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
                 />
               </div>
             </div>
@@ -472,6 +514,63 @@ const PharmacistDashboard = () => {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      {isAddStockModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl relative text-xs text-slate-300 animate-fade-in">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
+              <h3 className="font-bold text-slate-200 uppercase text-xs">Add New Stock Item</h3>
+              <button onClick={() => setIsAddStockModalOpen(false)} className="p-1 hover:bg-slate-850 rounded text-slate-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              handleAddStock(e);
+              setIsAddStockModalOpen(false);
+            }} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Supplier Distributor Name</label>
+                  <select value={stockForm.supplier_name} onChange={(e) => setStockForm({ ...stockForm, supplier_name: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none">
+                    {suppliers.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Supplier Invoice Ref ID</label>
+                  <input type="text" value={stockForm.supplier_invoice_no} onChange={(e) => setStockForm({ ...stockForm, supplier_invoice_no: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Medicine Formulation Name *</label>
+                  <input type="text" required value={stockForm.medicine_name} onChange={(e) => setStockForm({ ...stockForm, medicine_name: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Batch Code ID *</label>
+                  <input type="text" required value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Expiration Date *</label>
+                  <input type="date" required value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Quantity *</label>
+                  <input type="number" required value={stockForm.stock_qty} onChange={(e) => setStockForm({ ...stockForm, stock_qty: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Purchase Rate (₹)</label>
+                  <input type="number" step="0.01" value={stockForm.purchase_rate} onChange={(e) => setStockForm({ ...stockForm, purchase_rate: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Retail Rate (₹) *</label>
+                  <input type="number" step="0.01" required value={stockForm.sale_rate} onChange={(e) => setStockForm({ ...stockForm, sale_rate: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button type="submit" className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-lg shadow-lg">
+                  Submit Voucher
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

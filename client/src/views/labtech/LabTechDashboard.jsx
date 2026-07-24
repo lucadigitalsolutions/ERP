@@ -11,6 +11,18 @@ const LabTechDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
+  // Diagnostics Catalog States
+  const [tests, setTests] = useState([]);
+  const [isAddTestModalOpen, setIsAddTestModalOpen] = useState(false);
+  const [testForm, setTestForm] = useState({ name: '', category: 'Hematology', standard_cost: '', normal_range: '' });
+
+  // Advanced Queue Filters
+  const [queueSearchQuery, setQueueSearchQuery] = useState('');
+  const [queueDobFilter, setQueueDobFilter] = useState('');
+  const [queueStartDate, setQueueStartDate] = useState('');
+  const [queueEndDate, setQueueEndDate] = useState('');
+  const [queueDoctorFilter, setQueueDoctorFilter] = useState('');
+
   // Results inputs
   const [reportNotes, setReportNotes] = useState('');
   const [reportFileUrl, setReportFileUrl] = useState('https://careflow.s3.amazonaws.com/reports/LAB-CBC-9902.pdf');
@@ -37,8 +49,42 @@ const LabTechDashboard = () => {
     }
   };
 
+  const fetchTests = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/lab/tests');
+      setTests(res.data);
+    } catch (err) {
+      console.warn('Backend offline, loading mock tests...');
+      setTests([
+        { id: 1, name: 'Complete Blood Count (CBC)', category: 'Hematology', standard_cost: 350.00, normal_range: 'Hb: 12-16 g/dL, WBC: 4k-11k' },
+        { id: 2, name: 'Lipid Profile', category: 'Biochemistry', standard_cost: 600.00, normal_range: 'Cholesterol: <200 mg/dL' },
+        { id: 3, name: 'HbA1c', category: 'Diabetology', standard_cost: 450.00, normal_range: '< 5.7%' }
+      ]);
+    }
+  };
+
+  const handleAddTest = async (e) => {
+    e.preventDefault();
+    if (!testForm.name || !testForm.standard_cost) {
+      alert('Test name and cost are required.');
+      return;
+    }
+    try {
+      const res = await axios.post('http://localhost:5000/api/lab/tests', testForm);
+      addNotification(`New lab test template created: ${testForm.name}`, 'success');
+      setTestForm({ name: '', category: 'Hematology', standard_cost: '', normal_range: '' });
+      fetchTests();
+    } catch (err) {
+      const newTest = { id: tests.length + 1, ...testForm, standard_cost: parseFloat(testForm.standard_cost) };
+      setTests([...tests, newTest]);
+      addNotification(`Lab test template added (Offline Session)`, 'success');
+      setTestForm({ name: '', category: 'Hematology', standard_cost: '', normal_range: '' });
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
+    fetchTests();
   }, []);
 
   const handleUpdateStatus = async (orderId, newStatus) => {
@@ -113,6 +159,57 @@ const LabTechDashboard = () => {
         <div className="pb-3 border-b border-slate-800 mb-4 flex justify-between items-center">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Diagnostics History Records</h2>
         </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4 text-[11px]">
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Search Patient</label>
+            <input
+              type="text"
+              placeholder="Search Name, MRN..."
+              value={queueSearchQuery}
+              onChange={(e) => setQueueSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Doctor Name</label>
+            <input
+              type="text"
+              placeholder="Filter Doctor..."
+              value={queueDoctorFilter}
+              onChange={(e) => setQueueDoctorFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">DOB Filter</label>
+            <input
+              type="date"
+              value={queueDobFilter}
+              onChange={(e) => setQueueDobFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={queueStartDate}
+              onChange={(e) => setQueueStartDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1">End Date</label>
+            <input
+              type="date"
+              value={queueEndDate}
+              onChange={(e) => setQueueEndDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+            />
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -127,7 +224,23 @@ const LabTechDashboard = () => {
             </thead>
             <tbody className="divide-y divide-slate-800/40 text-slate-350">
               {orders
-                .filter(o => o.status === 'completed')
+                .filter(o => {
+                  if (o.status !== 'completed') return false;
+                  
+                  const nameMatch = o.patient_name.toLowerCase().includes(queueSearchQuery.toLowerCase()) ||
+                                    o.patient_mrn.toLowerCase().includes(queueSearchQuery.toLowerCase());
+                  
+                  const docName = o.doctor_name || '';
+                  const docMatch = !queueDoctorFilter || docName.toLowerCase().includes(queueDoctorFilter.toLowerCase());
+                  
+                  const dobMatch = !queueDobFilter || o.patient_dob === queueDobFilter;
+
+                  const orderDate = o.created_at ? new Date(o.created_at) : new Date();
+                  const startMatch = !queueStartDate || orderDate >= new Date(queueStartDate + 'T00:00:00');
+                  const endMatch = !queueEndDate || orderDate <= new Date(queueEndDate + 'T23:59:59');
+
+                  return nameMatch && docMatch && dobMatch && startMatch && endMatch;
+                })
                 .map((order) => (
                   <tr key={order.id} className="hover:bg-slate-900/10 transition-colors">
                     <td className="py-3 px-3 font-semibold text-brand-400 font-mono">#ORD-{order.id}</td>
@@ -186,6 +299,89 @@ const LabTechDashboard = () => {
         </div>
       </div>
     );
+  if (activeSubTab === 'catalog') {
+    return (
+      <div className="glass-panel rounded-2xl p-6 flex flex-col h-[calc(100vh-7rem)] animate-fade-in">
+        <div className="pb-3 border-b border-slate-800 mb-4 flex justify-between items-center">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Diagnostics Tests Catalog</h2>
+          <button
+            onClick={() => setIsAddTestModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg shadow-lg"
+          >
+            <Beaker className="w-4 h-4" />
+            <span>Add Test Template</span>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto text-xs text-slate-300">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-500 font-semibold uppercase text-[10px]">
+                <th className="py-3 px-3">Test Code ID</th>
+                <th className="py-3 px-3">Test Name</th>
+                <th className="py-3 px-3">Category</th>
+                <th className="py-3 px-3">Reference Normal Range</th>
+                <th className="py-3 px-3 text-right">Standard Fee (₹)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/40 text-slate-350">
+              {tests.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-900/10 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-brand-400 font-mono">#TST-{t.id}</td>
+                  <td className="py-3 px-3 font-bold text-slate-200">{t.name}</td>
+                  <td className="py-3 px-3 capitalize">{t.category}</td>
+                  <td className="py-3 px-3 font-mono">{t.normal_range || 'N/A'}</td>
+                  <td className="py-3 px-3 text-right font-bold text-slate-200">₹{parseFloat(t.standard_cost || 0).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {isAddTestModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl relative text-xs text-slate-300">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
+                <h3 className="font-bold text-slate-200 uppercase text-xs">Add Diagnostics Template</h3>
+                <button onClick={() => setIsAddTestModalOpen(false)} className="p-1 hover:bg-slate-850 rounded text-slate-400">
+                  <AlertTriangle className="w-4 h-4 rotate-180 text-slate-500" />
+                </button>
+              </div>
+              <form onSubmit={handleAddTest} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Test Name *</label>
+                  <input type="text" required value={testForm.name} onChange={(e) => setTestForm({ ...testForm, name: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Category</label>
+                  <select value={testForm.category} onChange={(e) => setTestForm({ ...testForm, category: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-slate-200">
+                    <option value="Hematology">Hematology</option>
+                    <option value="Biochemistry">Biochemistry</option>
+                    <option value="Diabetology">Diabetology</option>
+                    <option value="Endocrinology">Endocrinology</option>
+                    <option value="Clinical Pathology">Clinical Pathology</option>
+                    <option value="Radiology">Radiology</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Reference Normal Range</label>
+                  <input type="text" value={testForm.normal_range} onChange={(e) => setTestForm({ ...testForm, normal_range: e.target.value })} placeholder="e.g. Hb: 12-16 g/dL" className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-semibold text-slate-500 mb-1">Standard Cost (₹) *</label>
+                  <input type="number" step="0.01" required value={testForm.standard_cost} onChange={(e) => setTestForm({ ...testForm, standard_cost: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none" />
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button type="submit" className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-lg shadow-lg">
+                    Save Test Template
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -198,11 +394,79 @@ const LabTechDashboard = () => {
           <h2 className="text-sm font-semibold tracking-wider uppercase text-slate-300">Lab Orders Queue ({orders.filter(o => o.status !== 'completed').length})</h2>
         </div>
 
+        <div className="space-y-2 mb-3 pb-3 border-b border-slate-800 text-[10px]">
+          <input
+            type="text"
+            placeholder="Search Name, Phone, MRN..."
+            value={queueSearchQuery}
+            onChange={(e) => setQueueSearchQuery(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-850 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              placeholder="Doctor name..."
+              value={queueDoctorFilter}
+              onChange={(e) => setQueueDoctorFilter(e.target.value)}
+              className="bg-slate-950 border border-slate-850 rounded px-2 py-1 text-slate-200 focus:outline-none"
+            />
+            <input
+              type="date"
+              placeholder="DOB"
+              value={queueDobFilter}
+              onChange={(e) => setQueueDobFilter(e.target.value)}
+              className="bg-slate-950 border border-slate-850 rounded px-2 py-1 text-slate-200 focus:outline-none text-[8px]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={queueStartDate}
+              onChange={(e) => setQueueStartDate(e.target.value)}
+              className="bg-slate-950 border border-slate-850 rounded px-2 py-1 text-slate-200 focus:outline-none text-[8px]"
+            />
+            <input
+              type="date"
+              value={queueEndDate}
+              onChange={(e) => setQueueEndDate(e.target.value)}
+              className="bg-slate-950 border border-slate-850 rounded px-2 py-1 text-slate-200 focus:outline-none text-[8px]"
+            />
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {orders.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-8">No diagnostics requested</p>
+          {orders.filter(ord => {
+            const nameMatch = ord.patient_name.toLowerCase().includes(queueSearchQuery.toLowerCase()) ||
+                              ord.patient_mrn.toLowerCase().includes(queueSearchQuery.toLowerCase());
+            
+            const docName = ord.doctor_name || '';
+            const docMatch = !queueDoctorFilter || docName.toLowerCase().includes(queueDoctorFilter.toLowerCase());
+            
+            const dobMatch = !queueDobFilter || ord.patient_dob === queueDobFilter;
+
+            const orderDate = ord.created_at ? new Date(ord.created_at) : new Date();
+            const startMatch = !queueStartDate || orderDate >= new Date(queueStartDate + 'T00:00:00');
+            const endMatch = !queueEndDate || orderDate <= new Date(queueEndDate + 'T23:59:59');
+
+            return nameMatch && docMatch && dobMatch && startMatch && endMatch;
+          }).length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-8">No matching orders</p>
           ) : (
-            orders.map((ord) => (
+            orders.filter(ord => {
+              const nameMatch = ord.patient_name.toLowerCase().includes(queueSearchQuery.toLowerCase()) ||
+                                ord.patient_mrn.toLowerCase().includes(queueSearchQuery.toLowerCase());
+              
+              const docName = ord.doctor_name || '';
+              const docMatch = !queueDoctorFilter || docName.toLowerCase().includes(queueDoctorFilter.toLowerCase());
+              
+              const dobMatch = !queueDobFilter || ord.patient_dob === queueDobFilter;
+
+              const orderDate = ord.created_at ? new Date(ord.created_at) : new Date();
+              const startMatch = !queueStartDate || orderDate >= new Date(queueStartDate + 'T00:00:00');
+              const endMatch = !queueEndDate || orderDate <= new Date(queueEndDate + 'T23:59:59');
+
+              return nameMatch && docMatch && dobMatch && startMatch && endMatch;
+            }).map((ord) => (
               <div
                 key={ord.id}
                 onClick={() => setSelectedOrder(ord)}
